@@ -13,7 +13,7 @@
 
     <build>
         <defaultGoal>clean install</defaultGoal>
-        <finalName>serverjars-${project.version}</finalName>
+        <finalName>server</finalName>
         <plugins>
             <plugin>
                 <version>3.8.1</version>

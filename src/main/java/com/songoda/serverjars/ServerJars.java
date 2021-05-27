@@ -50,20 +50,12 @@ public final class ServerJars {
                 "  \\__ \\/ _ \\/ ___/ | / / _ \\/ ___/_  / / __ `/ ___/ ___/\n" +
                 " ___/ /  __/ /   | |/ /  __/ /  / /_/ / /_/ / /  (__  ) \n" +
                 "/____/\\___/_/    |___/\\___/_/   \\____/\\__,_/_/  /____/  \n" +
-                "ServerJars.com           Made with love by Songoda <3");
+                "ServerJars.com | Made with love by Songoda <3 | Edited by Zach_FR");
 
         System.out.println("\nServerJars is starting...");
 
 
-        Path jar = null;
-        if (!new File("serverjars.properties").exists()) {
-            System.out.println("\nIt looks like this is your first time using the updater. Would you like to create a config file now? [Y/N]\n" +
-                    "If you choose 'n' a default config will be created for you instead.");
-            String choice = awaitInput(s -> s.equalsIgnoreCase("y") || s.equalsIgnoreCase("n"), "Please choose Y or N");
-            jar = setupEnv(choice == null || choice.equalsIgnoreCase("y"));
-        } else {
-            jar = setupEnv(false);
-        }
+        Path jar = setupEnv(args[0]);
 
         if (jar == null) {
             System.out.println("\nServerJars could not be reached...");
@@ -79,7 +71,7 @@ public final class ServerJars {
         mainMethod = getMainMethod(jar, main);
 
         try {
-            mainMethod.invoke(null, new Object[]{args});
+            mainMethod.invoke(null, new Object[]{Arrays.copyOfRange(args, 1, args.length)});
         } catch (final IllegalAccessException | InvocationTargetException e) {
             System.err.println("\nError while running patched jar");
             e.printStackTrace();
@@ -88,80 +80,16 @@ public final class ServerJars {
     }
 
 
-    private static Path setupEnv(boolean guided) {
+    private static Path setupEnv(String version) {
         Properties properties = new Properties();
         Path cache = Paths.get("jar");
 
-        try {
-            InputStream defaultsInput = ServerJars.class.getResourceAsStream("/serverjars.properties");
-            Reader reader = new BufferedReader(new InputStreamReader(defaultsInput));
-            properties.load(reader);
-
-            saveProperties(properties, false);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-
-        String type = (String) properties.get("type");
-        String version = (String) properties.get("version");
-
-        if (guided) {
-            System.out.println("Connecting to ServerJars to find available jar types...\n");
-            TypesResponse typesResponse = new TypesRequest().send();
-            if (typesResponse.isSuccess()) {
-                Map<String, List<String>> typeMap = typesResponse.getAllTypes();
-                List<String> types = new ArrayList<>();
-                for (List<String> typeList : typeMap.values())
-                    types.addAll(typeList);
-
-                System.out.println("What server type would you like to use?" + "\n" + "Available types:");
-                StringBuilder typeString = new StringBuilder();
-                int i = 0;
-                for (String t : types) {
-                    if (i == 6) {
-                        typeString.append("\n");
-                        i = 0;
-                    }
-                    typeString.append(t).append(", ");
-                    i++;
-                }
-                System.out.println(typeString.substring(0, typeString.length() - 2) + ".");
-                String chosenJar = awaitInput(s -> types.contains(s.toLowerCase()), "The jar type '%s' was not listed above in the type list\nPlease choose another.");
-                if (chosenJar == null) {
-                    chosenJar = "paper";
-                    System.out.println("Unable to get user input -> defaulting to paper.");
-                }
-                type = chosenJar;
-                System.out.println("\nWhat server version would you like to run?" + "\n" + "Leave this blank or type 'latest' for latest");
-                String chosenVersion = awaitInput(s -> true, "Hmm.. that version was somehow incorrect...");
-                if (chosenVersion != null && chosenVersion.isEmpty())
-                    chosenVersion = "latest";
-                if (chosenVersion == null) {
-                    chosenVersion = "latest";
-                    System.out.println("Unable to get user input -> defaulting to latest.");
-                }
-                version = chosenVersion;
-                System.out.println("Setup completed!\n");
-                properties.setProperty("type", type);
-                properties.setProperty("version", version);
-                try {
-                    saveProperties(properties, true);
-                } catch (IOException e) {
-                    System.out.println("Could not save to properties file. Default values will be used...\n");
-                }
-            } else {
-                System.out.println("Connection to ServerJars could not be established. Default values will be used...\n");
-            }
-
-        }
-
         JarDetails jarDetails = null;
         if (version.equals("latest")) {
-            LatestResponse latestResponse = new LatestRequest(type).send();
+            LatestResponse latestResponse = new LatestRequest("spigot").send();
             jarDetails = latestResponse.latestJar;
         } else {
-            AllResponse allResponse = new AllRequest(type).send();
+            AllResponse allResponse = new AllRequest("spigot").send();
             for (JarDetails jar : allResponse.getJars()) {
                 if (jar.getVersion().equalsIgnoreCase(version)) {
                     jarDetails = jar;
@@ -179,7 +107,7 @@ public final class ServerJars {
                     f.delete();
 
 
-            Response response = new JarRequest(type, version.equalsIgnoreCase("latest") ? null : version, jar.toFile()).send();
+            Response response = new JarRequest("spigot", version.equalsIgnoreCase("latest") ? null : version, jar.toFile()).send();
             if (!response.isSuccess()) {
                 System.out.println("\nThe jar version \"" + version + "\" was not found in our database...");
                 return null;
@@ -191,23 +119,6 @@ public final class ServerJars {
         String launching = "\nLaunching " + jarDetails.getFile() + "...";
         System.out.println(launching + "\n" + launching.replaceAll("[^.]", ".") + "\n");
         return jar;
-    }
-
-    private static void saveProperties(Properties properties, boolean overwrite) throws IOException {
-        Path cache = Paths.get("jar");
-        File file = new File("serverjars.properties");
-
-        if (overwrite || !file.exists()) {
-            FileOutputStream fileOutputStream = new FileOutputStream(file);
-            properties.store(fileOutputStream, "Acceptable Versions (latest, 1.16.4, 1.8, etc...)");
-            fileOutputStream.close();
-        }
-
-        if (!Files.isDirectory(cache))
-            Files.createDirectories(cache);
-
-        InputStream input = new FileInputStream(file);
-        properties.load(new BufferedReader(new InputStreamReader(input)));
     }
 
     private static ClassLoader addClasspath(Path jar) {
